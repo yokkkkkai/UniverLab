@@ -42,33 +42,56 @@ int IntMod::powerMod(int a, int b, int p) const {
     return res;
 }
 
-void IntMod::equalMods(int mod, int other_mod) const {
-    if (mod != other_mod) {
-        throw std::invalid_argument("Mods must be equal!");
+bool IntMod::equalMods(int mod, int other_mod) const {
+    return mod == other_mod;
+}
+
+int IntMod::new_prime(int num) const {
+    if (num < 2) return 2;
+    if (isPrime(num)) return num;
+
+    int left = num - 1;
+    int right = num + 1;
+
+    while (true) {
+        if (left >= 2 && isPrime(left)) return left;
+        if (isPrime(right)) return right;
+
+        left--;
+        right++;
     }
+}
+
+int IntMod::new_mod(int mod, int other_mod) const {
+    if (equalMods(mod, other_mod)) return mod;
+
+    int lcm = mod * other_mod;
+
+    return new_prime(lcm);
 }
 
 template <typename Operation>
 IntMod IntMod::binOp(const IntMod& other, Operation op) const {
-    equalMods(mod, other.mod);
+    int n_mod = new_mod(mod, other.mod);
+    int n_value = md(op(value, other.value), n_mod);
 
-    int new_value = op(value, other.value);
-
-    return IntMod(md(new_value, mod), mod);
+    return IntMod(n_value, n_mod);
 }
 
 template <typename Operation>
 IntMod IntMod::binOpThis(const IntMod& other, Operation op) {
-    equalMods(mod, other.mod);
-
-    value = md(op(value, other.value), mod);
+    int n_mod = new_mod(mod, other.mod);
+    value = md(op(value, other.value), n_mod);
+    mod = n_mod;
 
     return *this;
 }
 
 template <typename Comparison>
 bool IntMod::compare(const IntMod& other, Comparison c) const {
-    equalMods(mod, other.mod);
+    if (!equalMods(mod, other.mod)) {
+        throw std::invalid_argument("For comparison mods must be equal");
+    }
 
     int rem_1 = md(value, mod);
     int rem_2 = md(other.value, mod);
@@ -81,8 +104,23 @@ IntMod::IntMod() : value(0), mod(2) {}
 IntMod::IntMod(int value, int mod) {
     if (!isPrime(mod)) throw std::invalid_argument("Mod must be a prime number!");
 
-    this->value = value;
+    this->value = md(value, mod);
     this->mod = mod;
+}
+
+std::istream& operator>>(std::istream& in, IntMod& obj) {
+    int value, mod;
+
+    in >> value >> mod;
+    obj.setMod(mod);
+    obj.setValue(value);
+
+    return in;
+}
+
+std::ostream& operator<<(std::ostream& out, const IntMod& obj) {
+    out << obj.getValue() << " mod " << obj.getMod() << std::endl;
+    return out;
 }
 
 int IntMod::getValue() const {
@@ -94,7 +132,7 @@ int IntMod::getMod() const {
 }
 
 void IntMod::setValue(const int value) {
-    this->value = value;
+    this->value = md(value, mod);
 }
 
 void IntMod::setMod(const int mod) {
@@ -104,41 +142,35 @@ void IntMod::setMod(const int mod) {
 }
 
 bool IntMod::operator==(const IntMod& other) const {
-    equalMods(mod, other.mod);
-    return md(value - other.value, mod) == 0;
+    return compare(other, [](int a, int b) {return a == b; });
 }
 
 bool IntMod::operator!=(const IntMod& other) const {
-    equalMods(mod, other.mod);
-    return !(*this == other);
+    return compare(other, [](int a, int b) {return a != b; });
 }
 
-bool IntMod::operator>(const IntMod& other) {
+bool IntMod::operator>(const IntMod& other) const {
     return compare(other, [](int a, int b) {return a > b; });
 }
 
-bool IntMod::operator>=(const IntMod& other) {
+bool IntMod::operator>=(const IntMod& other) const {
     return compare(other, [](int a, int b) {return a >= b; });
 }
 
-bool IntMod::operator<(const IntMod& other) {
+bool IntMod::operator<(const IntMod& other) const {
     return compare(other, [](int a, int b) {return a < b; });
 }
 
-bool IntMod::operator<=(const IntMod& other) {
+bool IntMod::operator<=(const IntMod& other) const {
     return compare(other, [](int a, int b) {return a <= b; });
 }
 
 IntMod& IntMod::operator=(const IntMod& other) {
     if (this == &other) return *this;
 
-    if (mod != other.mod) {
-        if (!isPrime(mod)) throw std::invalid_argument("Mod must be a prime number!");
+    this->setMod(other.mod);
+    this->setValue(other.value);
 
-        mod = other.mod;
-    }
-
-    value = other.value;
     return *this;
 }
 
@@ -166,23 +198,27 @@ IntMod IntMod::operator*=(const IntMod& other) {
     return binOpThis(other, [](int a, int b) {return a * b; });
 }
 
-IntMod IntMod::operator/(const IntMod& other) {
-    if (other.value == 0) throw std::invalid_argument("Diviver can not be zero!");
-    if (gcd(other.value, mod) != 1) throw std::invalid_argument("The number and modulus must be coprime!");
-    equalMods(mod, other.mod);
+IntMod IntMod::operator/(const IntMod& other) const {
+    if (other.value == 0) throw std::invalid_argument("Divider can not be zero!");
 
-    int reverse_value = powerMod(other.value, mod - 2, mod);
+    int n_mod = new_mod(mod, other.mod);
+    if (gcd(other.value, n_mod) != 1) throw std::invalid_argument("The number and modulus must be coprime!");
 
-    return *this * IntMod(reverse_value, mod);
+    int reverse_value = powerMod(other.value, n_mod - 2, n_mod);
+    int n_value = md(value * reverse_value, n_mod);
+
+    return IntMod(n_value, n_mod);
 }
 
 IntMod IntMod::operator/=(const IntMod& other) {
-    if (other.value == 0) throw std::invalid_argument("Diviver can not be zero!");
-    if (gcd(other.value, mod) != 1) throw std::invalid_argument("The number and modulus must be coprime!");
-    equalMods(mod, other.mod);
+    if (other.value == 0) throw std::invalid_argument("Divider can not be zero!");
 
-    int reverse_value = powerMod(other.value, mod - 2, mod);
-    value = md(value * reverse_value, mod);
+    int n_mod = new_mod(mod, other.mod);
+    if (gcd(other.value, n_mod) != 1) throw std::invalid_argument("The number and modulus must be coprime!");
+
+    int reverse_value = powerMod(other.value, n_mod - 2, n_mod);
+    this->setValue(md(value * reverse_value, n_mod));
+    this->setMod(n_mod);
 
     return *this;
 }
