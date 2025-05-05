@@ -89,7 +89,9 @@ void format_text(const char* input_file, const char* output_file) {
         if (len > 0 && line[len - 1] == '\n') {
             line[len - 1] = '\0';
         }
+
         trim_string(line);
+
         if (line[0] == '\0') {
             fprintf(fout, "\n");
             continue;
@@ -112,43 +114,26 @@ void format_text(const char* input_file, const char* output_file) {
             formatted_line[i] = ' ';
         }
 
-        int available_space = 60 - 3 + 1 - total_words_length;
+        int available_space = 60 - 3 - total_words_length;
 
-        if (word_count == 1) {
-            int word_length = str_len(words[0]);
-            int start_pos = 60 - word_length;
-            if (start_pos < 2) {
-                start_pos = 2;
-            }
-            for (i = 2; i < start_pos; i++) {
-                formatted_line[i] = ' ';
-            }
+        int spaces_between = (word_count - 1 > 0) ? (available_space / (word_count - 1)) : 0;
+        int extra_spaces = (word_count - 1 > 0) ? (available_space % (word_count - 1)) : 0;
+
+        int current_pos = 2;
+        for (i = 0; i < word_count; i++) {
+            int word_length = str_len(words[i]);
             int j;
             for (j = 0; j < word_length; j++) {
-                formatted_line[start_pos + j] = words[0][j];
+                formatted_line[current_pos++] = words[i][j];
             }
-            formatted_line[start_pos + word_length] = '\0';
-        }
-        else {
-            int spaces_between = (word_count - 1 > 0) ? (available_space / (word_count - 1)) : 0;
-            int extra_spaces = available_space % (word_count - 1);
-
-            int current_pos = 2;
-            for (i = 0; i < word_count; i++) {
-                int word_length = str_len(words[i]);
-                int j;
-                for (j = 0; j < word_length; j++) {
-                    formatted_line[current_pos++] = words[i][j];
-                }
-                if (i < word_count - 1) {
-                    int spaces = spaces_between + (i < extra_spaces ? 1 : 0);
-                    for (j = 0; j < spaces; j++) {
-                        formatted_line[current_pos++] = ' ';
-                    }
+            if (i < word_count - 1) {
+                int spaces = spaces_between + (i < extra_spaces ? 1 : 0);
+                for (j = 0; j < spaces; j++) {
+                    formatted_line[current_pos++] = ' ';
                 }
             }
-            formatted_line[current_pos] = '\0';
         }
+        formatted_line[current_pos] = '\0';
 
         fprintf(fout, "%s\n", formatted_line);
 
